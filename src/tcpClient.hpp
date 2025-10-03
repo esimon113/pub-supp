@@ -9,6 +9,7 @@ namespace pubsupp {
     class TcpClient {
         public:
             TcpClient();
+            TcpClient(std::string& serverAddress, int serverPort);
             ~TcpClient();
 
             void tryConnect(std::string& serverAddress, int serverPort);

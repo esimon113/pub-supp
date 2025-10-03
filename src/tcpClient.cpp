@@ -11,7 +11,7 @@ namespace pubsupp {
         _port(8080),
         _socket(-1)
     {
-        std::cout << "TcpClient created" << std::endl;
+        std::cout << "TcpClient created with IP " << _ipAddress << " and port " << _port << std::endl;
 
         this->_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (_socket == -1) {
@@ -20,6 +20,19 @@ namespace pubsupp {
 
     }
 
+
+    TcpClient::TcpClient(std::string& serverAddress, int serverPort)
+        : _ipAddress(serverAddress),
+          _port(serverPort),
+          _socket(-1)
+    {
+        std::cout << "TcpClient created with IP " << _ipAddress << " and port " << _port << std::endl;
+
+        this->_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (_socket == -1) {
+            throw std::runtime_error("Failed to create socket"); // TODO: custom error management
+        }
+    }
 
     TcpClient::~TcpClient() {
         std::cout << "TcpClient destroyed" << std::endl;
