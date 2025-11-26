@@ -22,9 +22,9 @@ namespace pubsupp {
             void subscribe(const std::string& topic, QoS qos);
 
         private:
-            std::unique_ptr<TcpClient> _tcpClient;
-            std::string _host;
-            int _port;
-            std::shared_ptr<MqttMessage> _message;
+            std::unique_ptr<TcpClient> tcpClient;
+            std::string host;
+            int port;
+            std::shared_ptr<MqttMessage> message;
     };
 }
