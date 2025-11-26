@@ -1,12 +1,10 @@
-
-
-#include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
-#include <string>
+#include <stdexcept>
 
 #include "mqttMessage.hpp"
+#include "connectMessage.hpp"
+#include "connackMessage.hpp"
 
 
 
@@ -30,92 +28,86 @@ namespace pubsupp {
         return buffer;
     }
 
+
     uint32_t MqttMessage::decodeRemainingLength(std::vector<uint8_t> encodedLength) const {
         uint32_t remainingLength = 0;
         uint32_t multiplier = 1;
+        size_t index = 0;
+        uint8_t byte;
 
         do {
-            uint8_t byte = encodedLength.front();
-            encodedLength.erase(encodedLength.begin());
+            if (index >= encodedLength.size()) {
+                throw std::runtime_error("Malformed Remaining Length: incomplete encoding");
+            }
 
+            byte = encodedLength[index++];
             remainingLength += (byte & 127) * multiplier;
             multiplier *= 128;
 
-            if (multiplier > 128 * 128 * 128) {
-                throw std::runtime_error("Malformed Remaining Length");
+            if (multiplier > 128 * 128 * 128 * 128) {
+                throw std::runtime_error("Malformed Remaining Length: exceeds maximum");
             }
-        } while (encodedLength.front() & 128);
+        } while ((byte & 128) != 0);  // Continue if continuation bit is set
 
         return remainingLength;
     }
 
 
 
-    class ConnectMessage : public MqttMessage {
-        public:
-            ConnectMessage() {
-                this->type = MessageType::CONNECT;
-                this->_clientId = "";
-                this->_cleanSession = true;
-                this->_keepAlive = 60;
-                this->_flags = ConnectFlags();
-            }
-
-            std::vector<uint8_t> encode() const override {
-                std::vector<uint8_t> buffer;
-
-                // message type
-                buffer.push_back((uint8_t)type << 4);
-                // remaining length
-                auto remainingLength = this->encodeRemainingLength(10);
-                std::copy(remainingLength.begin(), remainingLength.end(), std::back_inserter(buffer));
-
-                ConnectFlags flags { // TODO: make configurable
-                    .username = false,
-                    .password = false,
-                    .willRetain = false,
-                    .willQoS = QoS::AT_MOST_ONCE,
-                    .will = false,
-                    .cleanSession = true
-                };
-
-                // TODO: use variable header struct and encode it
-                ConnectVariableHeader variableHeader {
-                    .connectFlags = flags.encode(),
-                    .keepAlive = this->_keepAlive
-                };
-                auto encodedHeader = variableHeader.encode();
-                std::copy(encodedHeader.begin(), encodedHeader.end(), std::back_inserter(buffer));
-
-                return buffer;
-            }
-
-            std::unique_ptr<MqttMessage> decode(const std::vector<uint8_t>& data) override {
 
 
-                return std::make_unique<ConnectMessage>();
-            }
+    // Factory function implementations
+    std::unique_ptr<MqttMessage> createConnectMessage(const std::string& clientId, bool cleanSession, uint16_t keepAlive) {
+        return std::make_unique<ConnectMessage>(clientId, cleanSession, keepAlive);
+    }
 
-        private:
-            std::string _clientId;
-            bool _cleanSession;
-            uint16_t _keepAlive;
-            ConnectFlags _flags;
-    };
+
+    std::unique_ptr<MqttMessage> parseConnackMessage(const std::vector<uint8_t>& data) {
+        ConnackMessage connack;
+        return connack.decode(data);
+    }
 
 
 
 
-    class ConnackMessage : public MqttMessage {
-        public:
-            ConnackMessage();
 
-            std::vector<uint8_t> encode() const override;
-            std::unique_ptr<MqttMessage> decode(const std::vector<uint8_t>& data) override;
+    // ConnackMessageHelper implementations
+    bool ConnackMessageHelper::isSuccess(const MqttMessage& msg) {
+        if (msg.type != MessageType::CONNACK) { throw std::runtime_error("Message is not a CONNACK message"); }
+        const ConnackMessage* connack = dynamic_cast<const ConnackMessage*>(&msg);
+
+        if (!connack) { throw std::runtime_error("Failed to cast to ConnackMessage"); }
+
+        return connack->isSuccess();
+    }
 
 
-        private:
-            bool _sessionPresent;
-            uint8_t _returnCode;
-    };
+    bool ConnackMessageHelper::sessionPresent(const MqttMessage& msg) {
+        if (msg.type != MessageType::CONNACK) { throw std::runtime_error("Message is not a CONNACK message"); }
+        const ConnackMessage* connack = dynamic_cast<const ConnackMessage*>(&msg);
+
+        if (!connack) { throw std::runtime_error("Failed to cast to ConnackMessage"); }
+
+        return connack->sessionPresent();
+    }
+
+
+    uint8_t ConnackMessageHelper::returnCode(const MqttMessage& msg) {
+        if (msg.type != MessageType::CONNACK) { throw std::runtime_error("Message is not a CONNACK message"); }
+        const ConnackMessage* connack = dynamic_cast<const ConnackMessage*>(&msg);
+
+        if (!connack) { throw std::runtime_error("Failed to cast to ConnackMessage"); }
+
+        return connack->returnCode();
+    }
+
+
+    std::string ConnackMessageHelper::getReturnCodeDescription(const MqttMessage& msg) {
+        if (msg.type != MessageType::CONNACK) { throw std::runtime_error("Message is not a CONNACK message"); }
+        const ConnackMessage* connack = dynamic_cast<const ConnackMessage*>(&msg);
+
+        if (!connack) { throw std::runtime_error("Failed to cast to ConnackMessage"); }
+
+        return connack->getReturnCodeDescription();
+    }
 }

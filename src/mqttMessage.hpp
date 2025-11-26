@@ -1,6 +1,10 @@
+#pragma once
+
 #include <cstdint>
 #include <vector>
 #include <array>
+#include <memory>
+#include <string>
 
 
 
@@ -72,27 +76,7 @@ namespace pubsupp {
     };
 
 
-
-    struct ConnectVariableHeader {
-        const std::array<uint8_t, 6> protocolName = {0x00, 0x04, 'M', 'Q', 'T', 'T'};
-        uint8_t protocolLevel = 4; // mqtt version (4 = mqtt 3.1.1)
-
-        // Flags: [uname, pw, will retain, will qos, will qos, will, clean session, reserved].
-        // If cleanSession (clear session after reconnect) is set, client must repeat the CONNECT packet when reconnecting until it worked.
-        uint8_t connectFlags;
-        uint16_t keepAlive;
-
-
-
-        std::vector<uint8_t> encode() const {
-            return std::vector<uint8_t>();
-        }
-
-        ConnectVariableHeader decode(const std::vector<uint8_t>& data) const {
-
-        }
-    };
-
+    
 
 
     class MqttMessage {
@@ -107,6 +91,23 @@ namespace pubsupp {
             // see: https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718023
             std::vector<uint8_t> encodeRemainingLength(uint32_t length) const;
             uint32_t decodeRemainingLength(std::vector<uint8_t> encodedLength) const;
+    };
+
+
+
+    // factory functions for creating mqtt msgs
+    std::unique_ptr<MqttMessage> createConnectMessage(const std::string& clientId = "", bool cleanSession = true, uint16_t keepAlive = 60);
+    std::unique_ptr<MqttMessage> parseConnackMessage(const std::vector<uint8_t>& data);
+
+
+
+    // helper for accessing connack properties
+    class ConnackMessageHelper {
+        public:
+            static bool isSuccess(const MqttMessage& msg);
+            static bool sessionPresent(const MqttMessage& msg);
+            static uint8_t returnCode(const MqttMessage& msg);
+            static std::string getReturnCodeDescription(const MqttMessage& msg);
     };
 
 }
