@@ -5,6 +5,9 @@
 #include "mqttMessage.hpp"
 #include "connectMessage.hpp"
 #include "connackMessage.hpp"
+#include "disconnectMessage.hpp"
+
+
 
 
 
@@ -17,8 +20,11 @@ namespace pubsupp {
 
 
     MqttClient::~MqttClient() {
-        std::cout << "Disconnecting from MQTT broker..." << std::endl;
-        // Implementation to disconnect from MQTT broker
+        try {
+            this->disconnect();
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to disconnect cleanly: " + std::string(e.what()));
+        }
     }
 
 
@@ -31,6 +37,7 @@ namespace pubsupp {
         try {
             this->tcpClient->tryConnect(brokerAddress, brokerPort);
             std::cout << "TCP connection established to " << brokerAddress << ":" << brokerPort << std::endl;
+
         } catch (const std::exception& e) {
             throw std::runtime_error("Failed to establish TCP connection: " + std::string(e.what()));
         }
@@ -43,6 +50,7 @@ namespace pubsupp {
         try {
             this->tcpClient->trySend(connectData);
             std::cout << "CONNECT message sent (" << connectData.size() << " bytes)" << std::endl;
+
         } catch (const std::exception& e) {
             throw std::runtime_error("Failed to send CONNECT message: " + std::string(e.what()));
         }
@@ -62,11 +70,40 @@ namespace pubsupp {
             }
 
             bool sessionPresent = ConnackMessageHelper::sessionPresent(*connackMsg);
+            this->isConnected = true;
             std::cout << "Connection established successfully!" << std::endl;
             if (sessionPresent) { std::cout << "Session present: true" << std::endl; }
 
         } catch (const std::exception& e) {
             throw std::runtime_error("Failed to receive or parse CONNACK message: " + std::string(e.what()));
+        }
+    }
+
+    
+    void MqttClient::disconnect() {
+        if (!this->tcpClient) { return; }
+
+        // create + send disconnect packet
+        if (this->isConnected) {
+            try {
+                DisconnectMessage disconnectMsg;
+                auto payload = disconnectMsg.encode();
+                this->tcpClient->trySend(payload);
+                std::cout << "DISCONNECT message sent (" << payload.size() << " bytes)" << std::endl;
+
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Failed to send DISCONNECT message: " + std::string(e.what()));
+            }
+        }
+
+        // disconnect from tcp socket
+        try {
+            this->tcpClient->disconnect();
+            this->isConnected = false;
+            std::cout << "TCP connection closed" << std::endl;
+
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to disconnect from MQTT broker: " + std::string(e.what()));
         }
     }
 

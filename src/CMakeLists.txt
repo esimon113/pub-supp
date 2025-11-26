@@ -11,4 +11,5 @@ add_executable(pubsupp
     mqttMessage.cpp
     connectMessage.cpp
     connackMessage.cpp
+    disconnectMessage.cpp
 )

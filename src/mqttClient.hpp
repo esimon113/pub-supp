@@ -26,5 +26,6 @@ namespace pubsupp {
             std::string host;
             int port;
             std::shared_ptr<MqttMessage> message;
+            bool isConnected = false;
     };
 }
