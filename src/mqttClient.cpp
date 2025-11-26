@@ -23,7 +23,7 @@ namespace pubsupp {
         try {
             this->disconnect();
         } catch (const std::exception& e) {
-            throw std::runtime_error("Failed to disconnect cleanly: " + std::string(e.what()));
+            std::cerr << "Failed to disconnect cleanly: " << e.what() << std::endl;
         }
     }
 
