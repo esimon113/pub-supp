@@ -2,28 +2,28 @@
 #include <iostream>
 #include <string>
 
-#include "tcpClient.hpp"
+#include "mqttClient.hpp"
 
 
 
 int main() {
-    std::cout << "Hello World!" << std::endl;
-
-
+    std::cout << "Connecting to MQTT broker..." << std::endl;
 
     try {
-        std::string msg = "Hello Server!";
-        std::string srvAddr = "127.0.0.1";
+        std::string brokerAddress = "127.0.0.1";
+        int brokerPort = 1883;  // Default MQTT port
 
-        auto client = pubsupp::TcpClient();
-        client.tryConnect(srvAddr, 8080);
-        client.trySend(msg);
-        std::cout << client.tryReceive(1024) << std::endl;
+        pubsupp::MqttClient client(brokerAddress, brokerPort);
+        client.connect(brokerAddress, brokerPort);
+
+        std::cout << "Successfully connected to MQTT broker!" << std::endl;
+
+        // TODO: Add publish/subscribe functionality here
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
     }
-
 
     return 0;
 }
