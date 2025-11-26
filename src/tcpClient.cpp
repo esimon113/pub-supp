@@ -1,92 +1,173 @@
 #include <iostream>
 #include <stdexcept>
-#include <unistd.h>
 #include <vector>
+#include <cstring>
 
 #include "tcpClient.hpp"
 
 
+
+
+
+
 namespace pubsupp {
+    void TcpClient::initializeSocket() {
+#ifdef _WIN32
+        if (!this->socketInitialized) {
+            WSADATA wsaData;
+
+            int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+            if (result != 0) { throw std::runtime_error("WSAStartup failed: " + std::to_string(result)); }
+
+            this->socketInitialized = true;
+        }
+#endif
+    }
+
+
+    void TcpClient::cleanupSocket() {
+#ifdef _WIN32
+        if (this->socketInitialized) {
+            WSACleanup();
+
+            this->socketInitialized = false;
+        }
+#endif
+    }
+
+
     TcpClient::TcpClient()
         : ipAddress("127.0.0.1"),
         port(8080),
-        tcpSocket(-1)
+        tcpSocket(INVALID_SOCKET_VALUE),
+        socketInitialized(false)
     {
         std::cout << "TcpClient created with IP " << ipAddress << " and port " << port << std::endl;
+        this->initializeSocket();
 
         this->tcpSocket = socket(AF_INET, SOCK_STREAM, 0);
-        if (tcpSocket == -1) { throw std::runtime_error("Failed to create socket"); } // TODO: custom error management
+        if (tcpSocket == INVALID_SOCKET_VALUE) {
+            this->cleanupSocket();
+
+            throw std::runtime_error("Failed to create socket");
+        }
     }
 
 
     TcpClient::TcpClient(std::string& serverAddress, int serverPort)
         : ipAddress(serverAddress),
           port(serverPort),
-          tcpSocket(-1)
+          tcpSocket(INVALID_SOCKET_VALUE),
+          socketInitialized(false)
     {
         std::cout << "TcpClient created with IP " << ipAddress << " and port " << port << std::endl;
+        this->initializeSocket();
 
         this->tcpSocket = socket(AF_INET, SOCK_STREAM, 0);
-        if (tcpSocket == -1) { throw std::runtime_error("Failed to create socket"); } // TODO: custom error management
+        if (tcpSocket == INVALID_SOCKET_VALUE) {
+            this->cleanupSocket();
+
+            throw std::runtime_error("Failed to create socket");
+        }
     }
 
 
     TcpClient::~TcpClient() {
         std::cout << "TcpClient destroyed" << std::endl;
+        this->disconnect();
+        this->cleanupSocket();
     }
 
 
     void TcpClient::tryConnect(std::string& serverAddress, int serverPort) {
         this->serverAddress = serverAddress;
-        this->port = serverPort;
+        this->serverPort = serverPort;
 
         struct sockaddr_in server;
+        std::memset(&server, 0, sizeof(server));
         server.sin_family = AF_INET;
-        server.sin_port = htons(serverPort);
-        server.sin_addr.s_addr = inet_addr(serverAddress.c_str());
+        server.sin_port = htons(this->serverPort);
 
-        if (server.sin_addr.s_addr == INADDR_NONE) {
-            throw std::runtime_error("Invalid IP address: " + serverAddress);
-        }
+        #ifdef _WIN32
+            // For windows: inet_pton is available in ws2tcpip.h...
+            if (inet_pton(AF_INET, this->serverAddress.c_str(), &server.sin_addr) <= 0) {
+                server.sin_addr.s_addr = inet_addr(this->serverAddress.c_str());
 
-        if (::connect(tcpSocket, (struct sockaddr*)&server, sizeof(server)) == -1) {
-            throw std::runtime_error("Failed to connect to server");
+                if (server.sin_addr.s_addr == INADDR_NONE || server.sin_addr.s_addr == INADDR_ANY) {
+                    throw std::runtime_error("Invalid IP address: " + this->serverAddress);
+                }
+            }
+        #else
+            // Linux/macOS: inet_pton is available in arpa/inet.h
+            if (inet_pton(AF_INET, this->serverAddress.c_str(), &server.sin_addr) <= 0) {
+                server.sin_addr.s_addr = inet_addr(this->serverAddress.c_str());
+
+                if (server.sin_addr.s_addr == INADDR_NONE) {
+                    throw std::runtime_error("Invalid IP address: " + this->serverAddress);
+                }
+            }
+        #endif
+
+        if (::connect(this->tcpSocket, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR_VALUE) {
+#ifdef _WIN32
+            int error = WSAGetLastError();
+            throw std::runtime_error("Failed to connect to server " + serverAddress + ":" + std::to_string(this->serverPort) + " (Error: " + std::to_string(error) + ")");
+#else
+            throw std::runtime_error("Failed to connect to server " + serverAddress + ":" + std::to_string(this->serverPort));
+#endif
         }
     }
 
 
     void TcpClient::trySend(std::string& message) {
-        if (::send(tcpSocket, message.c_str(), message.size(), 0) == -1) {
+#ifdef _WIN32
+        int bytesSent = ::send(this->tcpSocket, message.c_str(), static_cast<int>(message.size()), 0);
+#else
+        ssize_t bytesSent = ::send(this->tcpSocket, message.c_str(), message.size(), 0);
+#endif
+        if (bytesSent == SOCKET_ERROR_VALUE) {
             throw std::runtime_error("Failed to send message");
         }
     }
 
 
     void TcpClient::trySend(const std::vector<uint8_t>& data) {
-        if (::send(tcpSocket, data.data(), data.size(), 0) == -1) {
-            throw std::runtime_error("Failed to send binary data");
-        }
+#ifdef _WIN32
+        int bytesSent = ::send(this->tcpSocket, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0);
+#else
+        ssize_t bytesSent = ::send(this->tcpSocket, data.data(), data.size(), 0);
+#endif
+        if (bytesSent == SOCKET_ERROR_VALUE) { throw std::runtime_error("Failed to send binary data"); }
     }
 
 
     std::string TcpClient::tryReceive(int bufferSize) {
-        char buffer[bufferSize];
-        ssize_t bytesRead = ::recv(tcpSocket, buffer, bufferSize - 1, 0);
+        std::vector<char> buffer(bufferSize);
+#ifdef _WIN32
+        int bytesRead = ::recv(this->tcpSocket, buffer.data(), bufferSize - 1, 0);
+#else
+        ssize_t bytesRead = ::recv(this->tcpSocket, buffer.data(), bufferSize - 1, 0);
+#endif
 
-        if (bytesRead == -1) { throw std::runtime_error("Failed to receive message"); }
+        if (bytesRead == SOCKET_ERROR_VALUE) {
+            throw std::runtime_error("Failed to receive message");
+        }
 
         buffer[bytesRead] = '\0';
-
-        return std::string(buffer);
+        return std::string(buffer.data());
     }
 
 
     std::vector<uint8_t> TcpClient::tryReceiveBinary(size_t bufferSize) {
         std::vector<uint8_t> buffer(bufferSize);
-        ssize_t bytesRead = ::recv(tcpSocket, buffer.data(), bufferSize, 0);
+#ifdef _WIN32
+        int bytesRead = ::recv(this->tcpSocket, reinterpret_cast<char*>(buffer.data()), static_cast<int>(bufferSize), 0);
+#else
+        ssize_t bytesRead = ::recv(this->tcpSocket, buffer.data(), bufferSize, 0);
+#endif
 
-        // TODO: custom error management:
-        if (bytesRead == -1) { throw std::runtime_error("Failed to receive binary data"); }
+        // TODO: custom error handling
+        if (bytesRead == SOCKET_ERROR_VALUE) { throw std::runtime_error("Failed to receive binary data"); }
         if (bytesRead == 0) { throw std::runtime_error("Connection closed by peer"); }
 
         buffer.resize(bytesRead);
@@ -96,7 +177,7 @@ namespace pubsupp {
 
     std::vector<uint8_t> TcpClient::tryReceiveMqttMessage() {
         // fixed header: 1 byte
-        std::vector<uint8_t> fixedHeader = tryReceiveBinary(1);
+        std::vector<uint8_t> fixedHeader = this->tryReceiveBinary(1);
         if (fixedHeader.empty()) { throw std::runtime_error("Failed to receive MQTT fixed header"); }
 
         // remaining length: 1-4 bytes
@@ -107,7 +188,7 @@ namespace pubsupp {
         int lengthBytesRead = 0;
 
         do {
-            std::vector<uint8_t> lengthByte = tryReceiveBinary(1);
+            std::vector<uint8_t> lengthByte = this->tryReceiveBinary(1);
             if (lengthByte.empty()) { throw std::runtime_error("Failed to receive remaining length byte"); }
 
             byte = lengthByte[0];
@@ -120,7 +201,7 @@ namespace pubsupp {
         } while ((byte & 128) != 0);
 
         // rest of message
-        std::vector<uint8_t> messageBody = tryReceiveBinary(remainingLength);
+        std::vector<uint8_t> messageBody = this->tryReceiveBinary(remainingLength);
 
         // put it all together.
         std::vector<uint8_t> fullMessage;
@@ -133,8 +214,19 @@ namespace pubsupp {
 
 
     void TcpClient::disconnect() {
-        if (this->tcpSocket == -1) { return; }
-        if (::close(this->tcpSocket) == -1) { throw std::runtime_error("Failed to close socket"); }
+        if (this->tcpSocket == INVALID_SOCKET_VALUE) {
+            return;
+        }
+#ifdef _WIN32
+        if (::closesocket(this->tcpSocket) == SOCKET_ERROR) {
+            throw std::runtime_error("Failed to close socket");
+        }
+#else
+        if (::close(this->tcpSocket) == -1) {
+            throw std::runtime_error("Failed to close socket");
+        }
+#endif
+        this->tcpSocket = INVALID_SOCKET_VALUE;
     }
 
 
