@@ -12,23 +12,21 @@
 
 namespace pubsupp {
 
-    class ConnectMessage : public MqttMessage {
-        public:
-            ConnectMessage(const std::string& clientId = "", bool cleanSession = true, uint16_t keepAlive = 60);
-            
-            std::vector<uint8_t> encode() const override;
+	class ConnectMessage : public MqttMessage {
+		public:
+			ConnectMessage(const std::string& clientId = "", bool cleanSession = true, uint16_t keepAlive = 60);
 
-            // not necessary for connect message:
-            std::unique_ptr<MqttMessage> decode(const std::vector<uint8_t>& data) override { return nullptr; };
+			std::vector<uint8_t> encode() const override;
+
+			// not necessary for connect message:
+			std::unique_ptr<MqttMessage> decode(const std::vector<uint8_t>& data) override { return nullptr; };
 
 
-        private:
-            std::string clientId;
-            bool cleanSession;
-            uint16_t keepAlive;
-            ConnectFlags flags;
-    };
+		private:
+			std::string clientId;
+			bool cleanSession;
+			uint16_t keepAlive;
+			ConnectFlags flags;
+	};
 
 }
-
-

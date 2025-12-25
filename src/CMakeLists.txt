@@ -5,11 +5,11 @@ project(pubsupp)
 set(CMAKE_CXX_STANDARD 20)
 
 add_executable(pubsupp
-    main.cpp
-    tcpClient.cpp
-    mqttClient.cpp
-    mqttMessage.cpp
-    connectMessage.cpp
-    connackMessage.cpp
-    disconnectMessage.cpp
+	main.cpp
+	tcpClient.cpp
+	mqttClient.cpp
+	mqttMessage.cpp
+	connectMessage.cpp
+	connackMessage.cpp
+	disconnectMessage.cpp
 )
