@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 
 
@@ -9,7 +10,7 @@ namespace pubsupp {
 	/*
 	 * Topic class for the MQTT client.
 	 * https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html
-	 * 
+	 *
 	 * Topic semantic and usage (4.7.3)
 	 * - All Topic Names and Topic Filters MUST be at least one character long
 	 * - Topic Names and Topic Filters are case sensitive
@@ -22,6 +23,10 @@ namespace pubsupp {
 	 */
 	class Topic {
 		public:
+			Topic() = default;
+			Topic(const std::string& topic) : topic(topic) {};
+			~Topic() = default;
+
 			void set(const std::string& newTopic);
 			const std::string& get() { return this->topic; };
 
@@ -32,5 +37,9 @@ namespace pubsupp {
 
 		private:
 			std::string topic;
+			std::vector<std::string> topicLevels;
+
+			void parseTopicLevels();
+			std::vector<std::string> parseTopicLevels(const std::string& t);
 	};
 }

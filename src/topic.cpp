@@ -2,12 +2,14 @@
 
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 
 namespace pubsupp {
 	void Topic::set(const std::string& newTopic) {
 		if (this->isValid(newTopic)) {
 			this->topic = newTopic;
+			this->parseTopicLevels();
 		} else std::cerr << "Invalid topic: " << newTopic << std::endl;
 	}
 
@@ -27,9 +29,26 @@ namespace pubsupp {
 	}
 
 
+	void Topic::parseTopicLevels() {
+		this->topicLevels.reserve(std::count(this->topic.begin(), this->topic.end(), '/') + 1);
+
+		size_t start = 0;
+		while (true) {
+			size_t pos = this->topic.find('/', start);
+
+			if (pos == std::string::npos) { // last level
+				this->topicLevels.emplace_back(this->topic.substr(start));
+				break;
+			}
+			this->topicLevels.emplace_back(this->topic.substr(start, pos - start));
+			start  = pos + 1;
+		}
+	}
+
+
 	/*
 	 * Check if a topic passes a filter.
-	 * 
+	 *
 	 * Topic filter matching rules (4.7)
 	 * - '+' matches exactly one topic level
 	 * - '#' matches zero or more topic levels and must be at the end
@@ -37,90 +56,41 @@ namespace pubsupp {
 	 */
 	bool Topic::passesFilter(const std::string& filter) {
 		const std::string& topic = this->topic;
-		
-		// Handle empty filter
-		if (filter.empty()) {
-			return topic.empty();
-		}
 
-		// Handle '#' as the only character (matches everything)
-		if (filter == "#") {
-			return true;
-		}
+		if (filter.empty()) return topic.empty();
+		if (filter == "#") return true;
 
 		// Validate '#' position - must be at the end and preceded by '/'
 		size_t hashPos = filter.find('#');
 		if (hashPos != std::string::npos) {
-			if (hashPos != filter.length() - 1) {
-				return false; // '#' must be at the end
-			}
-			if (hashPos > 0 && filter[hashPos - 1] != '/') {
-				return false; // '#' must be preceded by '/' unless it's the only character
-			}
+			if (hashPos != filter.length() - 1) return false;
+			if (hashPos > 0 && filter[hashPos - 1] != '/') return false;
 		}
 
-		// Split topic and filter into levels
-		std::vector<std::string> topicLevels;
-		std::vector<std::string> filterLevels;
-		
-		size_t start = 0;
-		for (size_t i = 0; i <= topic.length(); ++i) {
-			if (i == topic.length() || topic[i] == '/') {
-				if (i > start) {
-					topicLevels.push_back(topic.substr(start, i - start));
-				} else {
-					topicLevels.push_back(""); // Empty level
-				}
-				start = i + 1;
-			}
-		}
-
-		start = 0;
-		for (size_t i = 0; i <= filter.length(); ++i) {
-			if (i == filter.length() || filter[i] == '/') {
-				if (i > start) {
-					filterLevels.push_back(filter.substr(start, i - start));
-				} else {
-					filterLevels.push_back(""); // Empty level
-				}
-				start = i + 1;
-			}
-		}
+		this->parseTopicLevels();
+		std::vector<std::string> filterLevels = this->parseTopicLevels(filter);
 
 		// Handle '#' at the end of filter
 		if (!filterLevels.empty() && filterLevels.back() == "#") {
 			filterLevels.pop_back(); // Remove '#' from levels
 			// Match all remaining topic levels
-			if (filterLevels.size() > topicLevels.size()) {
-				return false;
-			}
+			if (filterLevels.size() > topicLevels.size()) return false;
+
 			// Check that all filter levels (except '#') match
 			for (size_t i = 0; i < filterLevels.size(); ++i) {
-				if (filterLevels[i] == "+") {
-					// '+' matches any single level
-					continue;
-				}
-				if (i >= topicLevels.size() || filterLevels[i] != topicLevels[i]) {
-					return false;
-				}
+				if (filterLevels[i] == "+") continue;
+				if (i >= topicLevels.size() || filterLevels[i] != topicLevels[i]) return false;
 			}
 			return true; // '#' matches all remaining levels
 		}
 
 		// No '#' in filter - exact level count match required
-		if (filterLevels.size() != topicLevels.size()) {
-			return false;
-		}
+		if (filterLevels.size() != topicLevels.size()) return false;
 
 		// Match each level
 		for (size_t i = 0; i < filterLevels.size(); ++i) {
-			if (filterLevels[i] == "+") {
-				// '+' matches any single level
-				continue;
-			}
-			if (filterLevels[i] != topicLevels[i]) {
-				return false;
-			}
+			if (filterLevels[i] == "+") continue;
+			if (filterLevels[i] != topicLevels[i]) return false;
 		}
 
 		return true;
