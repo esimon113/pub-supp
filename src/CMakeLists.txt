@@ -8,6 +8,7 @@ add_executable(pubsupp
 	main.cpp
 	tcpClient.cpp
 	mqttClient.cpp
+	topic.cpp
 	mqttMessage.cpp
 	connectMessage.cpp
 	connackMessage.cpp
