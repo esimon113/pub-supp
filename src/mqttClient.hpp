@@ -16,6 +16,7 @@ namespace pubsupp {
 
 			void connect(); // get broker details from config
 			void connect(std::string& brokerAddress, int brokerPort);
+			void disconnect();
 
 			void publish(const std::string& topic, QoS qos, const std::string& payload);
 			void subscribe(const std::string& topic, QoS qos, uint16_t keepalive);
