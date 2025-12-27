@@ -98,6 +98,8 @@ namespace pubsupp {
 	// factory functions for creating mqtt msgs
 	std::unique_ptr<MqttMessage> createConnectMessage(const std::string& clientId = "", bool cleanSession = true, uint16_t keepAlive = 60);
 	std::unique_ptr<MqttMessage> parseConnackMessage(const std::vector<uint8_t>& data);
+	std::unique_ptr<MqttMessage> createSubscribeMessage(const std::string& topic, QoS qos, uint16_t packetId);
+	std::unique_ptr<MqttMessage> parseSubackMessage(const std::vector<uint8_t>& data);
 
 
 

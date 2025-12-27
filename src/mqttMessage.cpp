@@ -5,6 +5,8 @@
 #include "mqttMessage.hpp"
 #include "connectMessage.hpp"
 #include "connackMessage.hpp"
+#include "subscribeMessage.hpp"
+#include "subackMessage.hpp"
 
 
 
@@ -68,6 +70,15 @@ namespace pubsupp {
 	}
 
 
+	std::unique_ptr<MqttMessage> createSubscribeMessage(const std::string& topic, QoS qos, uint16_t packetId) {
+		return std::make_unique<SubscribeMessage>(topic, qos, packetId);
+	}
+
+
+	std::unique_ptr<MqttMessage> parseSubackMessage(const std::vector<uint8_t>& data) {
+		SubackMessage suback;
+		return suback.decode(data);
+	}
 
 
 

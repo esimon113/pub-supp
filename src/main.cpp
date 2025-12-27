@@ -13,21 +13,27 @@ int main() {
 	try {
 		std::string brokerAddress = "127.0.0.1";
 		int brokerPort = 1883;  // Default MQTT port
+		std::string clientId = "test-client-123";
 
 		pubsupp::MqttClient client(brokerAddress, brokerPort, clientId);
 
-
 		client.connect(brokerAddress, brokerPort);
 
-		std::string topic = "test";
-		pubsupp::QoS qos =  pubsupp::QoS::AT_MOST_ONCE;
+		std::string topic = "#";
+		pubsupp::QoS qos = pubsupp::QoS::AT_MOST_ONCE;
 		uint16_t keepalive = 0;
+
+		std::cout << "Subscribing to topic: " << topic << std::endl;
 		client.subscribe(topic, qos, keepalive);
 
+		std::cout << "Successfully subscribed to topic!" << std::endl;
 
-		std::cout << "Successfully connected to MQTT broker!" << std::endl;
+		// TODO: implement message handling -> what should happen if client receives a message?
+		std::cout << "Press Enter to disconnect..." << std::endl;
+		std::cin.get();
 
-		// TODO: Add publish/subscribe functionality here
+		client.disconnect();
+		std::cout << "Disconnected from MQTT broker." << std::endl;
 
 	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;

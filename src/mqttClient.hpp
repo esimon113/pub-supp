@@ -28,5 +28,6 @@ namespace pubsupp {
 			const std::string& clientId;
 			std::shared_ptr<MqttMessage> message;
 			bool isConnected = false;
+			uint16_t nextPacketId = 1;
 	};
 }
