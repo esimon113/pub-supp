@@ -13,4 +13,6 @@ add_executable(pubsupp
 	connectMessage.cpp
 	connackMessage.cpp
 	disconnectMessage.cpp
+	subscribeMessage.cpp
+	subackMessage.cpp
 )
