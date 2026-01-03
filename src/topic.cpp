@@ -46,6 +46,26 @@ namespace pubsupp {
 	}
 
 
+	std::vector<std::string> Topic::parseTopicLevels(const std::string& t) {
+		std::vector<std::string> levels;
+		levels.reserve(std::count(t.begin(), t.end(), '/') + 1);
+
+		size_t start = 0;
+		while (true) {
+			size_t pos = t.find('/', start);
+
+			if (pos == std::string::npos) { // last level
+				levels.emplace_back(t.substr(start));
+				break;
+			}
+			levels.emplace_back(t.substr(start, pos - start));
+			start = pos + 1;
+		}
+
+		return levels;
+	}
+
+
 	/*
 	 * Check if a topic passes a filter.
 	 *

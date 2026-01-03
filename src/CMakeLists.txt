@@ -9,10 +9,12 @@ add_executable(pubsupp
 	tcpClient.cpp
 	mqttClient.cpp
 	topic.cpp
-	mqttMessage.cpp
-	connectMessage.cpp
-	connackMessage.cpp
-	disconnectMessage.cpp
-	subscribeMessage.cpp
-	subackMessage.cpp
+	messages/mqttMessage.cpp
+	messages/connectMessage.cpp
+	messages/connackMessage.cpp
+	messages/disconnectMessage.cpp
+	messages/subscribeMessage.cpp
+	messages/subackMessage.cpp
+	messages/publishMessage.cpp
+	messages/pubackMessage.cpp
 )

@@ -1,12 +1,15 @@
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 
+#include "messages/connectMessage.hpp"
+#include "messages/disconnectMessage.hpp"
+#include "messages/mqttMessage.hpp"
+#include "messages/pubackMessage.hpp"
+#include "messages/publishMessage.hpp"
+#include "messages/subackMessage.hpp"
+#include "messages/subscribeMessage.hpp"
 #include "mqttClient.hpp"
-#include "mqttMessage.hpp"
-#include "connectMessage.hpp"
-#include "disconnectMessage.hpp"
-#include "subscribeMessage.hpp"
-#include "subackMessage.hpp"
 
 
 
@@ -22,7 +25,7 @@ namespace pubsupp {
 	MqttClient::~MqttClient() {
 		try {
 			this->disconnect();
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			std::cerr << "Failed to disconnect cleanly: " << e.what() << std::endl;
 		}
 	}
@@ -31,12 +34,12 @@ namespace pubsupp {
 	void MqttClient::connect() { connect(this->host, this->port); }
 
 
-	void MqttClient::connect(std::string &brokerAddress, int brokerPort) {
+	void MqttClient::connect(std::string& brokerAddress, int brokerPort) {
 		try {
 			this->tcpClient->tryConnect(brokerAddress, brokerPort);
 			std::cout << "TCP connection established to " << brokerAddress << ":" << brokerPort << std::endl;
 
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to establish TCP connection: " + std::string(e.what()));
 		}
 
@@ -48,7 +51,7 @@ namespace pubsupp {
 			this->tcpClient->trySend(connectData);
 			std::cout << "CONNECT message sent (" << connectData.size() << " bytes)" << std::endl;
 
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to send CONNECT message: " + std::string(e.what()));
 		}
 
@@ -73,7 +76,7 @@ namespace pubsupp {
 				std::cout << "Session present: true" << std::endl;
 			}
 
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to receive or parse CONNACK message: " + std::string(e.what()));
 		}
 	}
@@ -92,7 +95,7 @@ namespace pubsupp {
 				this->tcpClient->trySend(payload);
 				std::cout << "DISCONNECT message sent (" << payload.size() << " bytes)" << std::endl;
 
-			} catch (const std::exception &e) {
+			} catch (const std::exception& e) {
 				throw std::runtime_error("Failed to send DISCONNECT message: " + std::string(e.what()));
 			}
 		}
@@ -103,13 +106,13 @@ namespace pubsupp {
 			this->isConnected = false;
 			std::cout << "TCP connection closed" << std::endl;
 
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to disconnect from MQTT broker: " + std::string(e.what()));
 		}
 	}
 
 
-	void MqttClient::subscribe(const std::string &topic, QoS qos, uint16_t keepalive) {
+	void MqttClient::subscribe(const std::string& topic, QoS qos, uint16_t keepalive) {
 		if (!this->isConnected) {
 			throw std::runtime_error("Not connected to MQTT broker");
 		}
@@ -129,10 +132,9 @@ namespace pubsupp {
 		try {
 			this->tcpClient->trySend(subscribeData);
 			std::cout << "SUBSCRIBE message sent for topic: " << topic << " (QoS: " << static_cast<int>(qos) << ", packet ID: " << packetId << ")" << std::endl;
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to send SUBSCRIBE message: " + std::string(e.what()));
 		}
-
 		// receive and parse suback
 		try {
 			std::vector<uint8_t> subackData = this->tcpClient->tryReceiveMqttMessage();
@@ -157,8 +159,61 @@ namespace pubsupp {
 
 			std::cout << "Subscription successful (return code: " << static_cast<int>(suback->getReturnCode()) << ")" << std::endl;
 
-		} catch (const std::exception &e) {
+		} catch (const std::exception& e) {
 			throw std::runtime_error("Failed to receive or parse SUBACK message: " + std::string(e.what()));
 		}
 	}
+
+
+	void MqttClient::publish(const std::string& topic, QoS qos, const std::string& payload) {
+		if (!this->isConnected) {
+			throw std::runtime_error("Not connected to MQTT broker");
+		}
+
+		if (static_cast<uint8_t>(qos) > 2) {
+			throw std::runtime_error("Invalid QoS value: must be 0, 1, or 2");
+		}
+
+		uint16_t packetId = this->nextPacketId++;
+		if (this->nextPacketId == 0) {
+			this->nextPacketId = 1; // skip id 0 -> invalid
+		}
+
+		auto publishMessage = createPublishMessage(topic, qos, payload, packetId);
+		auto publishData = publishMessage->encode();
+
+		try {
+			this->tcpClient->trySend(publishData);
+			std::cout << "PUBLISH message sent for topic: " << topic << " (QoS: " << static_cast<int>(qos) << ", packet ID: " << packetId << ")" << std::endl
+					  << "\t With Payload: " << payload;
+		} catch (const std::exception& e) {
+			throw std::runtime_error("Failed to send PUBLISH message: " + std::string(e.what()));
+		}
+
+		if (qos == QoS::AT_LEAST_ONCE || qos == QoS::EXACTLY_ONCE) {
+			// receive and parse puback
+			try {
+				std::vector<uint8_t> pubackData = this->tcpClient->tryReceiveMqttMessage();
+				std::cout << "PUBACK message received (" << pubackData.size() << " bytes)" << std::endl;
+
+				auto pubackMsg = parsePubackMessage(pubackData);
+
+				// Verify packet id matches
+				const PubackMessage* puback = dynamic_cast<const PubackMessage*>(pubackMsg.get());
+				if (!puback) {
+					throw std::runtime_error("Failed to cast to PubackMessage");
+				}
+
+				if (puback->getPacketId() != packetId) {
+					throw std::runtime_error("PUBACK packet ID mismatch: expected " + std::to_string(packetId) + ", got " + std::to_string(puback->getPacketId()));
+				}
+
+				std::cout << "Publish acknowledged (packet ID: " << packetId << ")" << std::endl;
+
+			} catch (const std::exception& e) {
+				throw std::runtime_error("Failed to receive or parse PUBACK message: " + std::string(e.what()));
+			}
+		}
+	}
+
 } // namespace pubsupp

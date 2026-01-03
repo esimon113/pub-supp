@@ -2,8 +2,8 @@
 #include <iostream>
 #include <string>
 
+#include "messages/mqttMessage.hpp"
 #include "mqttClient.hpp"
-#include "mqttMessage.hpp"
 
 
 
@@ -12,7 +12,7 @@ int main() {
 
 	try {
 		std::string brokerAddress = "127.0.0.1";
-		int brokerPort = 1883;  // Default MQTT port
+		int brokerPort = 1883; // Default MQTT port
 		std::string clientId = "test-client-123";
 
 		pubsupp::MqttClient client(brokerAddress, brokerPort, clientId);
@@ -27,6 +27,12 @@ int main() {
 		client.subscribe(topic, qos, keepalive);
 
 		std::cout << "Successfully subscribed to topic!" << std::endl;
+
+		std::string payload = "Hello MQTT";
+		std::string publishTopic = "test";
+		std::cout << "Publishing " << payload.length() << " bytes to topic: " << publishTopic << std::endl;
+		client.publish(publishTopic, qos, payload);
+		std::cout << "Successfully published to topic!" << std::endl;
 
 		// TODO: implement message handling -> what should happen if client receives a message?
 		std::cout << "Press Enter to disconnect..." << std::endl;
